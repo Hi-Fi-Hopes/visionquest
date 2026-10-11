@@ -14,6 +14,8 @@
 namespace vq
 {
 
+inline constexpr double kPi = 3.14159265358979323846;
+
 //==============================================================================
 // Plain iterative radix-2 FFT (complex, in place).
 class FFT
@@ -32,7 +34,7 @@ public:
         twiddle.resize ((size_t) n / 2);
         for (int i = 0; i < n / 2; ++i)
         {
-            const double a = -2.0 * M_PI * i / n;
+            const double a = -2.0 * kPi * i / n;
             twiddle[(size_t) i] = { (float) std::cos (a), (float) std::sin (a) };
         }
     }
@@ -87,7 +89,7 @@ public:
         windowSum = 0.0f;
         for (int i = 0; i < fftSize; ++i)
         {
-            window[(size_t) i] = 0.5f - 0.5f * (float) std::cos (2.0 * M_PI * i / (fftSize - 1));
+            window[(size_t) i] = 0.5f - 0.5f * (float) std::cos (2.0 * kPi * i / (fftSize - 1));
             windowSum += window[(size_t) i];
         }
         buf.resize (fftSize);

@@ -84,7 +84,7 @@ int main()
     {
         Rig rig;
         for (int k = 0; k < 30; ++k)
-            rig.frame ([f] (long long t, float& l, float& r) { l = r = 0.5f * (float) std::sin (2 * M_PI * f * t / sr); });
+            rig.frame ([f] (long long t, float& l, float& r) { l = r = 0.5f * (float) std::sin (2 * kPi * f * t / sr); });
         const int b = argmaxBand (rig.an);
         const float c = rig.an.bandCentre[b];
         std::printf ("   %6.0f Hz -> band %2d (centre %7.1f Hz), value %.2f\n", f, b, c, rig.an.bands[b]);
@@ -116,10 +116,10 @@ int main()
             const long long p = t % beatLen;
             const double tt = p / sr;
             const double kickF = 50.0 + 90.0 * std::exp (-tt * 30.0);
-            const float kick = (float) (0.9 * std::exp (-tt * 9.0) * std::sin (2 * M_PI * kickF * tt));
+            const float kick = (float) (0.9 * std::exp (-tt * 9.0) * std::sin (2 * kPi * kickF * tt));
             const long long hp = t % (beatLen / 2);
             const float hat = 0.12f * noise (rng) * (float) std::exp (-(hp / sr) * 60.0);
-            const float pad = 0.08f * (float) (std::sin (2 * M_PI * 330 * t / sr) + std::sin (2 * M_PI * 415 * t / sr));
+            const float pad = 0.08f * (float) (std::sin (2 * kPi * 330 * t / sr) + std::sin (2 * kPi * 415 * t / sr));
             l = kick + hat + pad; r = kick - hat * 0.5f + pad;
         };
         for (int k = 0; k < 60; ++k) rig.frame (gen);     // 1 s warm-up
@@ -139,7 +139,7 @@ int main()
         int startCount = 0;
         for (int k = 0; k < 600; ++k)
         {
-            rig.frame ([] (long long t, float& l, float& r) { l = r = 0.6f * (float) std::sin (2 * M_PI * 80 * t / sr); });
+            rig.frame ([] (long long t, float& l, float& r) { l = r = 0.6f * (float) std::sin (2 * kPi * 80 * t / sr); });
             if (k == 30) startCount = rig.an.beatCount;   // the onset itself may count once
         }
         CHECK (rig.an.beatCount - startCount == 0, "false beats on steady tone: %d", rig.an.beatCount - startCount);
@@ -150,7 +150,7 @@ int main()
     {
         Rig rig;
         for (int k = 0; k < 120; ++k)
-            rig.frame ([] (long long t, float& l, float& r) { l = 0.5f * (float) std::sin (2 * M_PI * 1000 * t / sr); r = 0.125f * (float) std::sin (2 * M_PI * 1000 * t / sr); });
+            rig.frame ([] (long long t, float& l, float& r) { l = 0.5f * (float) std::sin (2 * kPi * 1000 * t / sr); r = 0.125f * (float) std::sin (2 * kPi * 1000 * t / sr); });
         std::printf ("   L %.1f dBFS (expect -9.0), R %.1f dBFS (expect -21.1)\n", rig.an.vuL, rig.an.vuR);
         CHECK (std::abs (rig.an.vuL - -9.03f) < 0.5f, "vuL %.2f", rig.an.vuL);
         CHECK (std::abs (rig.an.vuR - -21.07f) < 0.5f, "vuR %.2f", rig.an.vuR);
@@ -162,7 +162,7 @@ int main()
     {
         Rig rig;
         for (int k = 0; k < 10; ++k)
-            rig.frame ([] (long long t, float& l, float& r) { l = r = 0.7f * (float) std::sin (2 * M_PI * 440 * t / sr + 1.0); });
+            rig.frame ([] (long long t, float& l, float& r) { l = r = 0.7f * (float) std::sin (2 * kPi * 440 * t / sr + 1.0); });
         CHECK (std::abs (rig.an.scopeL[0]) < 0.06f && rig.an.scopeL[3] > 0.0f, "scope[0]=%.3f scope[3]=%.3f", rig.an.scopeL[0], rig.an.scopeL[3]);
     }
 

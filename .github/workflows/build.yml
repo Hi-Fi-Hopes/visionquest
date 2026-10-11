@@ -22,7 +22,23 @@ jobs:
         run: cmake -B build -A x64
 
       - name: Build VST3
-        run: cmake --build build --config Release --target VisionQuest_VST3
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --target VisionQuest_VST3 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/build.log"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Publish build log on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          git config user.name  "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git switch --orphan buildlog
+          Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+          Copy-Item "$env:RUNNER_TEMP/build.log" build.log
+          git add build.log
+          git commit -m "Failed build log from $env:GITHUB_SHA"
+          git push --force origin buildlog
 
       - name: Upload plugin
         uses: actions/upload-artifact@v4
