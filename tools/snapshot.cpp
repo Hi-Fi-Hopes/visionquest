@@ -80,48 +80,53 @@ int main (int argc, char** argv)
     };
 
     const auto modes = vq::ids::modeNames();
-    const int themeFor[] = { 0, 2, 4, 3, 1, 8, 9, 1, 6, 4, 5, 7 };
-    const double t0 = Time::getMillisecondCounterHiRes();
-    int paints = 0;
-    for (int m = 0; m < modes.size(); ++m)
+    const int nThemes = (int) vq::themes().size();
+    const bool onlyNew = argc > 2 && String (argv[2]) == "new";
+    std::printf ("per-mode average paint (software renderer, 960x600):\n");
+    for (int m = onlyNew ? 12 : 0; m < modes.size(); ++m)
     {
         setParam (proc, vq::ids::mode, (float) m);
-        setParam (proc, vq::ids::theme, (float) themeFor[m]);
+        setParam (proc, vq::ids::theme, (float) ((m * 5) % nThemes));
+        const double t0 = Time::getMillisecondCounterHiRes();
         runFrames (100, true);   // let the banner fade and the trails build
-        paints += 100;
+        std::printf ("  %-16s %6.2f ms\n", modes[m].toRawUTF8(), (Time::getMillisecondCounterHiRes() - t0) / 100.0);
         save (String::formatted ("mode%02d_", m) + modes[m].removeCharacters (" ") + ".png", 1.0f);
     }
-    std::printf ("average paint: %.2f ms per frame at 960x600 (software renderer)\n",
-                 (Time::getMillisecondCounterHiRes() - t0) / paints);
 
-    // controls hidden: layout modes should grow to fill the window
-    ed->getStage().setControlsVisible (false);
-    for (int m : { 7, 11 })
+    // new effects, one shot each
+    struct Fx { const char* name; int mode; int theme; std::vector<std::pair<const char*, float>> params; };
+    const std::vector<Fx> fx {
+        { "fx_feedback_twist", 2, 4,  { { vq::ids::feedback, 0.6f }, { vq::ids::twist, 0.5f } } },
+        { "fx_symmetry_quad",  20, 9, { { vq::ids::symmetry, 3.0f } } },
+        { "fx_pixelate",       10, 0, { { vq::ids::pixelate, 0.5f } } },
+        { "fx_scan_vignette",  13, 0, { { vq::ids::scanlines, 0.8f }, { vq::ids::vignette, 0.7f } } },
+        { "fx_zoom_spin",      0, 6,  { { vq::ids::zoom, 0.7f }, { vq::ids::spin, 0.6f } } },
+        { "fx_palshift_sat",   12, 1, { { vq::ids::palShift, 0.5f }, { vq::ids::saturation, 1.8f }, { vq::ids::lineWidth, 2.5f } } },
+    };
+    for (auto& f : fx)
     {
-        setParam (proc, vq::ids::mode, (float) m);
-        runFrames (60, true);
-        save (String::formatted ("hidden%02d.png", m), 1.0f);
-    }
-    ed->getStage().setControlsVisible (true);
-
-    // mirror variants of a few
-    setParam (proc, vq::ids::mirror, 1.0f);
-    for (int m : { 0, 2, 6 })
-    {
-        setParam (proc, vq::ids::mode, (float) m);
+        setParam (proc, vq::ids::mode, (float) f.mode);
+        setParam (proc, vq::ids::theme, (float) f.theme);
+        for (auto& [id, v] : f.params) setParam (proc, id, v);
         runFrames (90, true);
-        save (String::formatted ("mirror%02d.png", m), 1.0f);
+        save (String (f.name) + ".png", 1.0f);
+        for (auto& [id, v] : f.params)
+        {
+            auto* prm = proc.apvts.getParameter (id);
+            prm->setValueNotifyingHost (prm->getDefaultValue());
+        }
     }
-    setParam (proc, vq::ids::mirror, 0.0f);
 
-    // UI close-up at 2x, and a small window
+    // knob pages
     setParam (proc, vq::ids::mode, 0.0f);
     setParam (proc, vq::ids::theme, 1.0f);
-    runFrames (90, true);
-    save ("ui_2x.png", 2.0f);
-    ed->setSize (640, 400);
-    runFrames (30, true);
-    save ("ui_small.png", 1.0f);
+    for (int pg = 1; pg <= 3; ++pg)
+    {
+        ed->getStage().keyPressed (KeyPress ('0' + pg));
+        runFrames (30, true);
+        save (String::formatted ("ui_page%d.png", pg), 1.0f);
+    }
+    ed->getStage().keyPressed (KeyPress ('1'));
 
     ed.reset();
     return 0;

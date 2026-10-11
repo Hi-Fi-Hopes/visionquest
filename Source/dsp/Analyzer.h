@@ -72,6 +72,8 @@ struct AnalyzerSettings
 {
     float sensitivityDb = 0.0f;  // -12 .. +24, shifts the whole display up/down
     float smoothing = 0.5f;      // 0 = twitchy, 1 = slow and syrupy
+    float tiltDbPerOct = 3.0f;   // spectrum tilt around 1 kHz; higher favours the highs
+    float beatSens = 0.65f;      // 0 = only big hits count as beats, 1 = everything does
 };
 
 class Analyzer
@@ -138,6 +140,7 @@ public:
         dt = std::clamp (dt, 1.0e-4f, 0.25f);
         newSamples = std::clamp (newSamples, 0, fftSize);
         const float gain = std::pow (10.0f, s.sensitivityDb / 20.0f);
+        tilt = s.tiltDbPerOct;
 
         //---------------------------------------------------------------- spectrum
         for (int i = 0; i < fftSize; ++i)
@@ -221,7 +224,8 @@ public:
         sinceBeat += dt;
         beat = false;
         const bool loudEnough = e > 1.0e-5f;
-        if (loudEnough && e > bassAvg * 1.45f && e > prevBassEnergy * 1.05f && sinceBeat > 0.22f)
+        const float threshold = 2.0f - 0.85f * std::clamp (s.beatSens, 0.0f, 1.0f);   // 0.65 -> 1.45
+        if (loudEnough && e > bassAvg * threshold && e > prevBassEnergy * 1.05f && sinceBeat > 0.22f)
         {
             beat = true;
             sinceBeat = 0.0f;
@@ -297,7 +301,7 @@ private:
     // dB with a +3 dB/octave tilt around 1 kHz so music reads balanced.
     float toUnit (float mag, float freq) const
     {
-        const float db = toDb (mag) + 3.0f * std::log2 (std::max (freq, 20.0f) / 1000.0f);
+        const float db = toDb (mag) + tilt * std::log2 (std::max (freq, 20.0f) / 1000.0f);
         return std::clamp ((db - floorDb) / -floorDb, 0.0f, 1.0f);
     }
 
@@ -325,6 +329,7 @@ private:
     std::vector<float> window, mags;
     std::vector<std::complex<float>> buf;
     float windowSum = 1.0f;
+    float tilt = 3.0f;
     float bandEdge[numBands + 1] {};
     float logFreq[logSpecSize] {};
     float peakHold[numBands] {};

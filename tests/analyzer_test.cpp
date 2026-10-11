@@ -187,8 +187,51 @@ int main()
         }
     }
 
-    //------------------------------------------------------------------ 9. CPU
-    std::printf ("9. CPU cost per frame\n");
+    //------------------------------------------------------------------ 9. beat sensitivity knob
+    std::printf ("9. Beat Sens: low setting ignores soft kicks, high setting catches them\n");
+    {
+        auto run = [] (float sens)
+        {
+            Rig rig;
+            rig.s.beatSens = sens;
+            const long long beatLen = (long long) (sr * 0.5);
+            auto gen = [&] (long long t, float& l, float& r)
+            {
+                const long long p = t % beatLen;
+                const double tt = p / sr;
+                // soft kick over a steady bass bed: only ~1.6x energy jump
+                const float kick = (float) (0.12 * std::exp (-tt * 12.0) * std::sin (2 * kPi * 60.0 * tt));
+                const float bed = 0.25f * (float) std::sin (2 * kPi * 70.0 * t / sr);
+                l = r = kick + bed;
+            };
+            for (int k = 0; k < 60; ++k) rig.frame (gen);
+            const int before = rig.an.beatCount;
+            for (int k = 0; k < 600; ++k) rig.frame (gen);
+            return rig.an.beatCount - before;
+        };
+        const int lo = run (0.0f), def = run (0.65f), hi = run (1.0f);
+        std::printf ("   beats in 10 s: sens 0 -> %d, 0.65 -> %d, 1 -> %d\n", lo, def, hi);
+        CHECK (lo <= def && def <= hi, "not monotonic");
+        CHECK (hi > lo, "knob has no effect");
+    }
+
+    //------------------------------------------------------------------ 10. tilt
+    std::printf ("10. Tilt: more tilt lifts the highs relative to the lows\n");
+    {
+        auto run = [] (float tilt)
+        {
+            Rig rig; rig.s.tiltDbPerOct = tilt;
+            for (int k = 0; k < 30; ++k)
+                rig.frame ([] (long long t, float& l, float& r) { l = r = 0.2f * (float) (std::sin (2 * kPi * 100 * t / sr) + std::sin (2 * kPi * 8000 * t / sr)); });
+            return rig.an.treble - rig.an.bass;
+        };
+        const float flat = run (-3.0f), steep = run (9.0f);
+        std::printf ("   treble-bass: tilt -3 -> %.2f, tilt +9 -> %.2f\n", flat, steep);
+        CHECK (steep > flat + 0.1f, "tilt has no effect");
+    }
+
+    //------------------------------------------------------------------ 11. CPU
+    std::printf ("11. CPU cost per frame\n");
     {
         Rig rig;
         std::vector<float> L (Analyzer::fftSize), R (Analyzer::fftSize);

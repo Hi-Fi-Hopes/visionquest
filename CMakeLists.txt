@@ -40,7 +40,8 @@ juce_add_binary_data(VisionQuestFonts SOURCES
 target_sources(VisionQuest PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
-    Source/ui/Visuals.cpp)
+    Source/ui/Visuals.cpp
+    Source/ui/Visuals2.cpp)
 
 target_include_directories(VisionQuest PRIVATE Source)
 
@@ -66,7 +67,8 @@ if(VQ_BUILD_SNAPSHOT)
         tools/snapshot.cpp
         Source/PluginProcessor.cpp
         Source/PluginEditor.cpp
-        Source/ui/Visuals.cpp)
+        Source/ui/Visuals.cpp
+        Source/ui/Visuals2.cpp)
     target_include_directories(VQSnapshot PRIVATE Source)
     target_compile_definitions(VQSnapshot PRIVATE
         JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_MODAL_LOOPS_PERMITTED=1

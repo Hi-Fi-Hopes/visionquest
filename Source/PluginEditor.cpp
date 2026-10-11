@@ -63,6 +63,8 @@ void Canvas::tick (float dt)
     AnalyzerSettings s;
     s.sensitivityDb = param (ids::sensitivity);
     s.smoothing = param (ids::smoothing);
+    s.tiltDbPerOct = param (ids::tilt);
+    s.beatSens = param (ids::beatSens);
     analyzer.process (L.data(), R.data(), fresh, dt, s);
 
     // auto-cycle
@@ -106,6 +108,9 @@ void Canvas::paint (Graphics& g)
     const float maxPixels = 4.2e6f;
     if (r.getWidth() * r.getHeight() * scale * scale > maxPixels)
         scale = std::sqrt (maxPixels / (r.getWidth() * r.getHeight()));
+    // Pixelate: render at a fraction of the resolution, then blow it up with hard edges.
+    if (const float pix = param (ids::pixelate); pix > 0.001f)
+        scale = jmax (0.02f, scale / (1.0f + pix * 5.0f + pix * pix * 15.0f));
     const int iw = jmax (1, (int) std::ceil (r.getWidth() * scale)), ih = jmax (1, (int) std::ceil (r.getHeight() * scale));
     if (trail.getWidth() != iw || trail.getHeight() != ih)
     {
@@ -119,8 +124,45 @@ void Canvas::paint (Graphics& g)
     auto& vis = *visuals[(size_t) displayMode];
 
     Ctx ctx { analyzer, th, time, dt, param (ids::speed), param (ids::glow), param (ids::react),
-              param (ids::detail), param (ids::mirror) > 0.5f, huePhase, rng, r };
+              param (ids::detail), param (ids::mirror) > 0.5f, huePhase, rng, r,
+              param (ids::saturation), param (ids::brightness), param (ids::palShift) };
     const auto safe = r.withTrimmedTop (insetTop).withTrimmedBottom (insetBottom);
+    setLineWidthScale (param (ids::lineWidth));
+
+    // Feedback / Twist: the previous frame is zoomed and rotated a little before
+    // the new one is drawn on top, which turns trails into tunnels and swirls.
+    const float fb = param (ids::feedback), tw = param (ids::twist);
+    const bool feeding = vis.usesTrails() && trailFresh && (fb > 0.001f || std::abs (tw) > 0.001f);
+    if (feeding)
+    {
+        if (scratch.getWidth() != iw || scratch.getHeight() != ih) scratch = Image (Image::ARGB, iw, ih, true);
+        {
+            Graphics sg (scratch);
+            sg.fillAll (th.bg.withRotatedHue (huePhase));
+            const float k = dt * 60.0f;
+            sg.drawImageTransformed (trail, AffineTransform::translation (-0.5f * (float) iw, -0.5f * (float) ih)
+                                                .scaled (1.0f + fb * 0.035f * k)
+                                                .rotated (tw * 0.035f * k)
+                                                .translated (0.5f * (float) iw, 0.5f * (float) ih));
+        }
+        std::swap (trail, scratch);
+    }
+
+    // Spin / Zoom / Shake move the whole picture.
+    if (const float spin = param (ids::spin); std::abs (spin) > 0.001f)
+        spinAngle += dt * spin * 1.6f;
+    else
+    {
+        // Spin turned off: ease back to upright the short way round.
+        spinAngle = std::remainder (spinAngle, MathConstants<float>::twoPi);
+        spinAngle *= std::exp (-dt / 0.35f);
+    }
+    const float shakeAmt = param (ids::shake) * analyzer.beatPulse * jmin (r.getWidth(), r.getHeight()) * 0.045f;
+    const Point<float> shakeOff (shakeAmt * (rng.nextFloat() * 2.0f - 1.0f), shakeAmt * (rng.nextFloat() * 2.0f - 1.0f));
+    const float zoom = param (ids::zoom);
+    const auto camera = AffineTransform::translation (-r.getCentreX(), -r.getCentreY())
+                            .scaled (zoom).rotated (spinAngle)
+                            .translated (r.getCentreX() + shakeOff.x, r.getCentreY() + shakeOff.y);
 
     {
         Graphics tg (trail);
@@ -133,15 +175,70 @@ void Canvas::paint (Graphics& g)
         else
         {
             // Trails knob: how much of the previous frame fades per 60th of a second.
-            const float perFrame = 1.0f - param (ids::trails) * 0.93f;
+            // Feedback needs persistence to show, so it holds the trails open too.
+            const float trailAmt = jmax (param (ids::trails), fb > 0.001f ? 0.55f + 0.42f * fb : 0.0f);
+            const float perFrame = 1.0f - trailAmt * 0.93f;
             const float alpha = 1.0f - std::pow (1.0f - perFrame, dt * 60.0f);
             if (alpha > 0.0f) drawBackground (tg, r, th, huePhase, alpha);
         }
+        tg.addTransform (camera);
         vis.render (tg, vis.fullBleed() ? r : safe, ctx);
     }
 
+    // Composite to the screen, with Symmetry mirroring the left / top half.
+    const auto toScreen = AffineTransform::scale (r.getWidth() / (float) iw, r.getHeight() / (float) ih);
     g.setImageResamplingQuality (Graphics::lowResamplingQuality);
-    g.drawImageTransformed (trail, AffineTransform::scale (r.getWidth() / (float) iw, r.getHeight() / (float) ih));
+    g.drawImageTransformed (trail, toScreen);
+    const int sym = (int) param (ids::symmetry);
+    if (sym > 0)
+    {
+        const float fw = (float) iw, fh = (float) ih;
+        auto mirrored = [&] (Rectangle<float> clip, bool flipX, bool flipY)
+        {
+            Graphics::ScopedSaveState ss (g);
+            g.reduceClipRegion (clip.toNearestInt());
+            g.drawImageTransformed (trail, AffineTransform::scale (flipX ? -1.0f : 1.0f, flipY ? -1.0f : 1.0f)
+                                               .translated (flipX ? fw : 0.0f, flipY ? fh : 0.0f).followedBy (toScreen));
+        };
+        const float hx = r.getCentreX(), hy = r.getCentreY();
+        if (sym == 1 || sym == 3) mirrored (r.withLeft (hx), true, false);
+        if (sym == 2)             mirrored (r.withTop (hy), false, true);
+        if (sym == 3)
+        {
+            mirrored (r.withTop (hy).withRight (hx), false, true);
+            mirrored (r.withTop (hy).withLeft (hx), true, true);
+        }
+    }
+
+    // Post effects
+    if (const float st = param (ids::strobe); st > 0.001f && analyzer.beatPulse > 0.01f)
+    {
+        g.setColour (Colours::white.interpolatedWith (th.accent, 0.3f).withAlpha (jmin (0.85f, st * std::pow (analyzer.beatPulse, 3.0f))));
+        g.fillRect (r);
+    }
+    if (const float vg = param (ids::vignette); vg > 0.001f)
+    {
+        ColourGradient vgr (Colours::black.withAlpha (0.0f), r.getCentre(), Colours::black.withAlpha (jmin (1.0f, vg * 1.1f)), r.getTopLeft(), true);
+        vgr.addColour (0.55, Colours::black.withAlpha (vg * 0.15f));
+        g.setGradientFill (vgr);
+        g.fillRect (r);
+    }
+    if (const float sc = param (ids::scanlines); sc > 0.001f)
+    {
+        if (! scanTile.isValid())
+        {
+            scanTile = Image (Image::ARGB, 4, 3, true);
+            for (int x = 0; x < 4; ++x) { scanTile.setPixelAt (x, 2, Colours::black); scanTile.setPixelAt (x, 1, Colours::black.withAlpha (0.35f)); }
+        }
+        g.setTiledImageFill (scanTile, 0, 0, jmin (1.0f, sc * 0.9f));
+        g.fillRect (r);
+        // a slow rolling bright band, like an old monitor
+        const float bandY = r.getY() + frac01 (time * 0.07f) * (r.getHeight() + 200.0f) - 100.0f;
+        ColourGradient roll (Colours::white.withAlpha (0.0f), 0, bandY - 60.0f, Colours::white.withAlpha (0.05f * sc), 0, bandY, false);
+        roll.addColour (0.99, Colours::white.withAlpha (0.0f));
+        g.setGradientFill (roll);
+        g.fillRect (r.getX(), bandY - 60.0f, r.getWidth(), 61.0f);
+    }
 
     auto& f = Fonts::get();
     if (bannerAlpha > 0.0f)
@@ -192,7 +289,12 @@ void Canvas::mouseDoubleClick (const MouseEvent&)
 //==============================================================================
 TopBar::TopBar()
 {
-    modeBox.addItemList (ids::modeNames(), 1);
+    const auto names = ids::modeNames();
+    for (auto& grp : ids::modeGroups())
+    {
+        modeBox.addSectionHeading (grp.name);
+        for (int i : grp.modes) modeBox.addItem (names[i], i + 1);
+    }
     themeBox.addItemList (themeNames(), 1);
     cycleBox.addItemList (ids::cycleNames(), 1);
     for (auto* c : std::initializer_list<Component*> { &modePrev, &modeBox, &modeNext, &themePrev, &themeBox, &themeNext, &cycleBox, &fullBtn, &hideBtn })
@@ -242,19 +344,73 @@ void TopBar::resized()
 }
 
 //==============================================================================
+ChoiceSlot::ChoiceSlot (const String& name)
+{
+    label.setText (name.toUpperCase(), dontSendNotification);
+    label.setJustificationType (Justification::centred);
+    label.setInterceptsMouseClicks (false, false);
+    addAndMakeVisible (label);
+    addAndMakeVisible (box);
+}
+
+void ChoiceSlot::resized()
+{
+    auto b = getLocalBounds();
+    label.setBounds (b.removeFromTop (14));
+    box.setBounds (b.withSizeKeepingCentre (b.getWidth() - 4, 26));
+}
+
+void ChoiceSlot::recolour (const Theme& t) { label.setColour (Label::textColourId, t.text.withAlpha (0.65f)); }
+
 BottomBar::BottomBar()
 {
     for (auto* k : knobs()) addAndMakeVisible (k);
+    for (auto* k : motionKnobs()) addChildComponent (k);
+    for (auto* k : colorKnobs()) addChildComponent (k);
+    addChildComponent (symmetry);
+    symmetry.box.addItemList (ids::symmetryNames(), 1);
+
     for (auto* t : { &mirror, &shuffle })
     {
         t->setClickingTogglesState (true);
         addAndMakeVisible (t);
     }
+    addAndMakeVisible (dice);
     mirror.setTooltip ("Symmetric versions of each mode");
     shuffle.setTooltip ("Auto-cycle in random order, with random themes");
+    dice.setTooltip ("Randomise the look: theme, motion and colour knobs (leaves Sensitivity, Smoothing, Tilt and Beat Sens alone)");
+
+    int i = 0;
+    for (auto* t : { &tabLook, &tabMotion, &tabColor })
+    {
+        t->setClickingTogglesState (true);
+        t->setRadioGroupId (4711);
+        const int pg = i++;
+        t->onClick = [this, pg] { setPage (pg); };
+        addAndMakeVisible (t);
+    }
+    tabLook.setToggleState (true, dontSendNotification);
 }
 
-void BottomBar::recolour (const Theme& t) { for (auto* k : knobs()) k->recolour (t); }
+void BottomBar::setPage (int p)
+{
+    page = jlimit (0, 2, p);
+    for (auto* k : knobs()) k->setVisible (page == 0);
+    for (auto* k : motionKnobs()) k->setVisible (page == 1);
+    for (auto* k : colorKnobs()) k->setVisible (page == 2);
+    symmetry.setVisible (page == 2);
+    tabLook.setToggleState (page == 0, dontSendNotification);
+    tabMotion.setToggleState (page == 1, dontSendNotification);
+    tabColor.setToggleState (page == 2, dontSendNotification);
+}
+
+void BottomBar::recolour (const Theme& t)
+{
+    for (auto* k : knobs()) k->recolour (t);
+    for (auto* k : motionKnobs()) k->recolour (t);
+    for (auto* k : colorKnobs()) k->recolour (t);
+    symmetry.recolour (t);
+}
 
 void BottomBar::paint (Graphics& g)
 {
@@ -269,13 +425,30 @@ void BottomBar::paint (Graphics& g)
 
 void BottomBar::resized()
 {
-    auto b = getLocalBounds().reduced (16, 10);
-    auto toggles = b.removeFromRight (110);
+    auto b = getLocalBounds().reduced (14, 10);
+    auto tabs = b.removeFromLeft (76).reduced (0, 6);
+    const int th = tabs.getHeight() / 3;
+    tabLook.setBounds (tabs.removeFromTop (th).reduced (0, 2));
+    tabMotion.setBounds (tabs.removeFromTop (th).reduced (0, 2));
+    tabColor.setBounds (tabs.reduced (0, 2));
+    b.removeFromLeft (6);
+
+    auto toggles = b.removeFromRight (100).reduced (4, 6);
+    const int tgh = toggles.getHeight() / 3;
+    mirror.setBounds (toggles.removeFromTop (tgh).reduced (0, 2));
+    shuffle.setBounds (toggles.removeFromTop (tgh).reduced (0, 2));
+    dice.setBounds (toggles.reduced (0, 2));
+
     const int kw = b.getWidth() / 8;
-    for (auto* k : knobs()) k->setBounds (b.removeFromLeft (kw));
-    toggles.reduce (6, 14);
-    mirror.setBounds (toggles.removeFromTop (toggles.getHeight() / 2).reduced (0, 4));
-    shuffle.setBounds (toggles.reduced (0, 4));
+    auto lay = [&] (auto list, bool withSymmetry)
+    {
+        auto row = b;
+        for (auto* k : list) k->setBounds (row.removeFromLeft (kw));
+        if (withSymmetry) symmetry.setBounds (row.removeFromLeft (kw).reduced (0, 10));
+    };
+    lay (knobs(), false);
+    lay (motionKnobs(), false);
+    lay (colorKnobs(), true);
 }
 
 //==============================================================================
@@ -304,13 +477,30 @@ Stage::Stage (VisionQuestProcessor& p)
         if (auto* prm = ap.getParameter (knobIds[i]))
             ks[i]->slider.setDoubleClickReturnValue (true, prm->convertFrom0to1 (prm->getDefaultValue()));
     }
+    auto attachAll = [&] (auto list, std::initializer_list<const char*> pids)
+    {
+        auto it = pids.begin();
+        for (auto* k : list)
+        {
+            const char* pid = *it++;
+            sliderAttachments.push_back (std::make_unique<SA> (ap, pid, k->slider));
+            if (auto* prm = ap.getParameter (pid))
+                k->slider.setDoubleClickReturnValue (true, prm->convertFrom0to1 (prm->getDefaultValue()));
+        }
+    };
+    attachAll (bottom.motionKnobs(), { ids::zoom, ids::spin, ids::shake, ids::feedback, ids::twist, ids::strobe, ids::lineWidth, ids::beatSens });
+    attachAll (bottom.colorKnobs(),  { ids::saturation, ids::brightness, ids::palShift, ids::scanlines, ids::vignette, ids::pixelate, ids::tilt });
+    symmetryAttach = std::make_unique<CA> (ap, ids::symmetry, bottom.symmetry.box);
+    bottom.dice.onClick = [this] { rollDice(); };
+    for (auto& grp : ids::modeGroups()) for (int i : grp.modes) menuOrder.push_back (i);
+
     mirrorAttach = std::make_unique<BA> (ap, ids::mirror, bottom.mirror);
     shuffleAttach = std::make_unique<BA> (ap, ids::shuffle, bottom.shuffle);
     cycleAttach = std::make_unique<CA> (ap, ids::cycle, top.cycleBox);
 
     // Mode and theme boxes show what's on screen (which may be auto-cycled),
     // so they're driven by hand instead of attached.
-    top.modeBox.onChange  = [this] { if (const int i = top.modeBox.getSelectedItemIndex(); i >= 0 && i != canvas.getDisplayMode()) { setChoice (ids::mode, i); canvas.showMode (i); } };
+    top.modeBox.onChange  = [this] { if (const int i = top.modeBox.getSelectedId() - 1; i >= 0 && i != canvas.getDisplayMode()) { setChoice (ids::mode, i); canvas.showMode (i); } };
     top.themeBox.onChange = [this] { if (const int i = top.themeBox.getSelectedItemIndex(); i >= 0 && i != canvas.getDisplayTheme()) { setChoice (ids::theme, i); canvas.showTheme (i); } };
     top.modePrev.onClick  = [this] { stepMode (-1); };
     top.modeNext.onClick  = [this] { stepMode (1); };
@@ -323,7 +513,7 @@ Stage::Stage (VisionQuestProcessor& p)
     canvas.onDoubleClick = [this] { if (onToggleFullscreen) onToggleFullscreen(); };
 
     applyTheme (canvas.getDisplayTheme());
-    top.modeBox.setSelectedItemIndex (canvas.getDisplayMode(), dontSendNotification);
+    top.modeBox.setSelectedId (canvas.getDisplayMode() + 1, dontSendNotification);
 }
 
 Stage::~Stage()
@@ -343,10 +533,60 @@ void Stage::setChoice (const char* id, int index)
 
 void Stage::stepMode (int delta)
 {
-    const int n = ids::modeNames().size();
-    const int i = (canvas.getDisplayMode() + delta + n) % n;
+    // step in the order the menu shows, so the arrows walk through each group
+    const int n = (int) menuOrder.size();
+    const auto it = std::find (menuOrder.begin(), menuOrder.end(), canvas.getDisplayMode());
+    const int pos = it == menuOrder.end() ? 0 : (int) (it - menuOrder.begin());
+    const int i = menuOrder[(size_t) ((pos + delta + n) % n)];
     setChoice (ids::mode, i);
     canvas.showMode (i);
+}
+
+void Stage::rollDice()
+{
+    auto& ap = proc.apvts;
+    auto& r = diceRng;
+    auto set = [&ap] (const char* id, float v)
+    {
+        if (auto* prm = ap.getParameter (id))
+        {
+            prm->beginChangeGesture();
+            prm->setValueNotifyingHost (prm->convertTo0to1 (v));
+            prm->endChangeGesture();
+        }
+    };
+    auto chance = [&r] (float p) { return r.nextFloat() < p; };
+
+    // LOOK (not Sensitivity or Smoothing, which are about the input)
+    set (ids::speed,    0.5f + 1.5f * r.nextFloat());
+    set (ids::trails,   0.9f * r.nextFloat());
+    set (ids::glow,     0.3f + 0.7f * r.nextFloat());
+    set (ids::react,    0.3f + 0.7f * r.nextFloat());
+    set (ids::detail,   0.2f + 0.8f * r.nextFloat());
+    set (ids::hueDrift, chance (0.3f) ? 0.5f * r.nextFloat() : 0.0f);
+    set (ids::mirror,   chance (0.35f) ? 1.0f : 0.0f);
+    // MOTION (not Beat Sens)
+    const bool fbOn = chance (0.4f);
+    set (ids::zoom,      chance (0.3f) ? 0.8f + 0.5f * r.nextFloat() : 1.0f);
+    set (ids::spin,      chance (0.35f) ? (r.nextFloat() - 0.5f) * 0.6f : 0.0f);
+    set (ids::shake,     chance (0.3f) ? 0.6f * r.nextFloat() : 0.0f);
+    set (ids::feedback,  fbOn ? 0.15f + 0.55f * r.nextFloat() : 0.0f);
+    set (ids::twist,     fbOn && chance (0.6f) ? (r.nextFloat() - 0.5f) * 0.8f : 0.0f);
+    set (ids::strobe,    chance (0.15f) ? 0.4f * r.nextFloat() : 0.0f);
+    set (ids::lineWidth, 0.7f + 1.3f * r.nextFloat());
+    // COLOR (not Tilt)
+    set (ids::saturation, 0.7f + 0.8f * r.nextFloat());
+    set (ids::brightness, 0.9f + 0.3f * r.nextFloat());
+    set (ids::palShift,   chance (0.4f) ? r.nextFloat() : 0.0f);
+    set (ids::scanlines,  chance (0.3f) ? 0.3f + 0.5f * r.nextFloat() : 0.0f);
+    set (ids::vignette,   chance (0.5f) ? 0.7f * r.nextFloat() : 0.0f);
+    set (ids::pixelate,   chance (0.12f) ? 0.2f + 0.4f * r.nextFloat() : 0.0f);
+    set (ids::symmetry,   chance (0.25f) ? (float) (1 + r.nextInt (3)) : 0.0f);
+
+    const int nt = (int) themes().size();
+    const int theme = (canvas.getDisplayTheme() + 1 + r.nextInt (nt - 1)) % nt;
+    setChoice (ids::theme, theme);
+    canvas.showTheme (theme);
 }
 
 void Stage::stepTheme (int delta)
@@ -372,8 +612,8 @@ void Stage::tick (float dt)
 {
     canvas.tick (dt);
     if (canvas.getDisplayTheme() != appliedTheme) applyTheme (canvas.getDisplayTheme());
-    if (top.modeBox.getSelectedItemIndex() != canvas.getDisplayMode())
-        top.modeBox.setSelectedItemIndex (canvas.getDisplayMode(), dontSendNotification);
+    if (top.modeBox.getSelectedId() != canvas.getDisplayMode() + 1)
+        top.modeBox.setSelectedId (canvas.getDisplayMode() + 1, dontSendNotification);
 
     // In full screen the controls get out of the way after a few still seconds.
     if (fullscreen && controlsShown && ! top.modeBox.isPopupActive() && ! top.themeBox.isPopupActive() && ! top.cycleBox.isPopupActive())
@@ -421,8 +661,11 @@ bool Stage::keyPressed (const KeyPress& k)
     if (k == KeyPress::rightKey) { stepMode (1); return true; }
     if (k == KeyPress::upKey)    { stepTheme (-1); return true; }
     if (k == KeyPress::downKey)  { stepTheme (1); return true; }
-    if (k.getTextCharacter() == 'h' || k.getTextCharacter() == 'H') { setControlsVisible (! controlsShown); return true; }
-    if (k.getTextCharacter() == 'f' || k.getTextCharacter() == 'F') { if (onToggleFullscreen) onToggleFullscreen(); return true; }
+    const juce_wchar ch = CharacterFunctions::toLowerCase (k.getTextCharacter() != 0 ? k.getTextCharacter() : (juce_wchar) k.getKeyCode());
+    if (ch == 'h') { setControlsVisible (! controlsShown); return true; }
+    if (ch == 'f') { if (onToggleFullscreen) onToggleFullscreen(); return true; }
+    if (ch == 'd') { rollDice(); return true; }
+    if (ch >= '1' && ch <= '3') { bottom.setPage ((int) (ch - '1')); return true; }
     if (k == KeyPress::escapeKey && fullscreen) { if (onToggleFullscreen) onToggleFullscreen(); return true; }
     return false;
 }

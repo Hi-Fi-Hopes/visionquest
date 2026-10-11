@@ -21,8 +21,22 @@ struct Ctx
     float hue;       // palette rotation in turns
     juce::Random& rng;
     juce::Rectangle<float> full;   // the whole canvas, even the part under the control bars
+    float saturation = 1.0f, brightness = 1.0f, palShift = 0.0f;   // COLOR page
 
-    juce::Colour col (float t, float alpha = 1.0f) const { return th.at (t, hue).withMultipliedAlpha (alpha); }
+    // Palette lookup with the colour knobs applied. Palette Shift slides along
+    // the palette and bounces back, so it never jumps between colours.
+    juce::Colour col (float t, float alpha = 1.0f) const
+    {
+        if (palShift > 0.0f)
+        {
+            const float x = (juce::jlimit (0.0f, 1.0f, t) + 2.0f * palShift) * 0.5f;
+            t = 1.0f - std::abs ((x - std::floor (x)) * 2.0f - 1.0f);
+        }
+        auto c = th.at (t, hue);
+        if (saturation != 1.0f) c = c.withSaturation (juce::jlimit (0.0f, 1.0f, c.getSaturation() * saturation));
+        if (brightness != 1.0f) c = c.withMultipliedBrightness (brightness);
+        return c.withMultipliedAlpha (alpha);
+    }
     float pulse() const { return a.beatPulse * react; }
 };
 
@@ -40,6 +54,7 @@ public:
 };
 
 std::unique_ptr<Visual> createVisual (int index);
+void setLineWidthScale (float);   // Line Width knob, applied to every glowing stroke
 void drawBackground (juce::Graphics&, juce::Rectangle<float>, const Theme&, float hue, float alpha);
 
 } // namespace vq

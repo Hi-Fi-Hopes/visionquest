@@ -47,8 +47,9 @@ private:
     int displayMode = 0, displayTheme = 0, lastParamMode = -1, lastParamTheme = -1;
     float cycleTimer = 0; int beatsSince = 0;
 
-    juce::Image trail;
+    juce::Image trail, scratch, scanTile;
     bool trailFresh = false;
+    float spinAngle = 0;
     float time = 0, pendingDt = 0, huePhase = 0;
     juce::Random rng;
 
@@ -73,6 +74,17 @@ public:
     juce::TextButton fullBtn { "FULL SCREEN" }, hideBtn { "HIDE" };
 };
 
+// A labelled drop-down that sits in a knob slot.
+class ChoiceSlot : public juce::Component
+{
+public:
+    explicit ChoiceSlot (const juce::String& name);
+    void resized() override;
+    void recolour (const Theme&);
+    juce::ComboBox box;
+    juce::Label label;
+};
+
 class BottomBar : public juce::Component
 {
 public:
@@ -80,12 +92,28 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void recolour (const Theme&);
+    void setPage (int);
 
+    // page 1: LOOK (unchanged from v1.0)
     Knob sens { "Sensitivity" }, smooth { "Smoothing" }, speed { "Speed" }, trails { "Trails" },
          glow { "Glow" }, react { "Beat React" }, detail { "Detail" }, hue { "Hue Drift" };
-    juce::TextButton mirror { "MIRROR" }, shuffle { "SHUFFLE" };
+    // page 2: MOTION
+    Knob zoom { "Zoom" }, spin { "Spin" }, shake { "Shake" }, feedback { "Feedback" },
+         twist { "Twist" }, strobe { "Strobe" }, lineWidth { "Line Width" }, beatSens { "Beat Sens" };
+    // page 3: COLOR / FX
+    Knob saturation { "Saturation" }, brightness { "Brightness" }, palShift { "Pal Shift" }, scanlines { "Scanlines" },
+         vignette { "Vignette" }, pixelate { "Pixelate" }, tilt { "Tilt" };
+    ChoiceSlot symmetry { "Symmetry" };
+
+    juce::TextButton mirror { "MIRROR" }, shuffle { "SHUFFLE" }, dice { "DICE" };
+    juce::TextButton tabLook { "LOOK" }, tabMotion { "MOTION" }, tabColor { "COLOR" };
 
     std::array<Knob*, 8> knobs() { return { &sens, &smooth, &speed, &trails, &glow, &react, &detail, &hue }; }
+    std::array<Knob*, 8> motionKnobs() { return { &zoom, &spin, &shake, &feedback, &twist, &strobe, &lineWidth, &beatSens }; }
+    std::array<Knob*, 7> colorKnobs() { return { &saturation, &brightness, &palShift, &scanlines, &vignette, &pixelate, &tilt }; }
+
+private:
+    int page = 0;
 };
 
 //==============================================================================
@@ -124,7 +152,10 @@ private:
     using CA = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
     std::vector<std::unique_ptr<SA>> sliderAttachments;
     std::unique_ptr<BA> mirrorAttach, shuffleAttach;
-    std::unique_ptr<CA> cycleAttach;
+    std::unique_ptr<CA> cycleAttach, symmetryAttach;
+    std::vector<int> menuOrder;   // modes in the order the menu shows them
+    juce::Random diceRng;
+    void rollDice();
 
     bool fullscreen = false, controlsShown = true;
     float idle = 0, barScale = 1;

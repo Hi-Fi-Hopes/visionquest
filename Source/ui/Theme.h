@@ -38,6 +38,12 @@ inline const std::vector<Theme>& themes()
         { "Sunset Strip", C (0xff10041a), C (0xff2e0c33), { C (0xff3b1f7a), C (0xff8f2d97), C (0xffe0407e), C (0xffff7a59), C (0xffffc95e) }, C (0xffff7a59), C (0xffffe9de) },
         { "Vaporwave",    C (0xff160d2e), C (0xff2e1d55), { C (0xff01cdfe), C (0xff05ffa1), C (0xffb967ff), C (0xffff71ce), C (0xfffffb96) }, C (0xffff71ce), C (0xfff4ecff) },
         { "Monochrome",   C (0xff000000), C (0xff101010), { C (0xff2e2e2e), C (0xff6e6e6e), C (0xffb0b0b0), C (0xffffffff) }, C (0xffffffff), C (0xffeeeeee) },
+        // added in v1.1
+        { "Nixie Tube",   C (0xff0a0402), C (0xff200d05), { C (0xff3a1204), C (0xffa33a0c), C (0xffff7a1a), C (0xffffb35c), C (0xffffe2b8) }, C (0xffff7a1a), C (0xffffd9b0) },
+        { "Bubblegum",    C (0xff1a0a1f), C (0xff3a1340), { C (0xff7ad7ff), C (0xffc86bff), C (0xffff5fa2), C (0xffff8fd8), C (0xffffe6f5) }, C (0xffff5fa2), C (0xffffeaf6) },
+        { "Deep Ocean",   C (0xff00060d), C (0xff002233), { C (0xff003b5c), C (0xff00708f), C (0xff00b3b3), C (0xff57e8c9), C (0xffd6fff4) }, C (0xff00d1c1), C (0xffd6fff4) },
+        { "Gold Record",  C (0xff0a0804), C (0xff1e170a), { C (0xff4a3a12), C (0xff9c7a24), C (0xffe0b84a), C (0xfffff0b0), C (0xffffffff) }, C (0xffe0b84a), C (0xfffff3d0) },
+        { "Blood Moon",   C (0xff070000), C (0xff1c0206), { C (0xff2b0008), C (0xff6e0014), C (0xffc4102a), C (0xffff4d4d), C (0xffffd0c8) }, C (0xffff2d3d), C (0xffffd6d0) },
     };
     return list;
 }

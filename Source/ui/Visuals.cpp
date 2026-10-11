@@ -1,56 +1,15 @@
 #include "ui/Visuals.h"
 #include "ui/Fonts.h"
+#include "ui/VisualHelpers.h"
 
 using namespace juce;
 
 namespace vq
 {
 
-namespace
-{
-    constexpr float twoPi = MathConstants<float>::twoPi;
+using namespace detail;
 
-    float frac (float x) { return x - std::floor (x); }
-
-    // Folds a position around a circle into 0..1..0 so low end meets low end.
-    float fold (float u, int folds)
-    {
-        const float x = frac (u * (float) folds * 0.5f) * 2.0f;
-        return x < 1.0f ? x : 2.0f - x;
-    }
-
-    void glowStroke (Graphics& g, const Path& p, Colour c, float width, float glow)
-    {
-        const PathStrokeType::JointStyle j = PathStrokeType::curved;
-        const PathStrokeType::EndCapStyle e = PathStrokeType::rounded;
-        if (glow > 0.01f)
-        {
-            g.setColour (c.withMultipliedAlpha (0.09f * glow));
-            g.strokePath (p, PathStrokeType (width * (1.0f + 7.0f * glow), j, e));
-            g.setColour (c.withMultipliedAlpha (0.22f * glow));
-            g.strokePath (p, PathStrokeType (width * (1.0f + 2.8f * glow), j, e));
-        }
-        g.setColour (c);
-        g.strokePath (p, PathStrokeType (width, j, e));
-        if (glow > 0.35f)
-        {
-            g.setColour (Colours::white.withAlpha (0.45f * (glow - 0.35f) * c.getFloatAlpha()));
-            g.strokePath (p, PathStrokeType (jmax (0.6f, width * 0.35f), j, e));
-        }
-    }
-
-    void glowDot (Graphics& g, Point<float> p, float r, Colour c, float glow)
-    {
-        if (glow > 0.01f)
-        {
-            g.setColour (c.withMultipliedAlpha (0.16f * glow));
-            const float gr = r * (1.0f + 2.5f * glow);
-            g.fillEllipse (p.x - gr, p.y - gr, gr * 2, gr * 2);
-        }
-        g.setColour (c);
-        g.fillEllipse (p.x - r, p.y - r, r * 2, r * 2);
-    }
-}
+void setLineWidthScale (float s) { lineScale = jlimit (0.1f, 5.0f, s); }
 
 void drawBackground (Graphics& g, Rectangle<float> r, const Theme& th, float hue, float alpha)
 {
@@ -960,8 +919,11 @@ public:
 };
 
 //==============================================================================
+std::unique_ptr<Visual> createVisual2 (int index);   // the v1.1 modes, in Visuals2.cpp
+
 std::unique_ptr<Visual> createVisual (int index)
 {
+    if (index >= 12) return createVisual2 (index);
     switch (index)
     {
         case 0:  return std::make_unique<Bars>();

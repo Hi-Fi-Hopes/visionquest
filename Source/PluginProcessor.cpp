@@ -52,6 +52,43 @@ juce::AudioProcessorValueTreeState::ParameterLayout VisionQuestProcessor::create
     p.push_back (std::make_unique<AudioParameterChoice> (ParameterID { ids::cycle, 1 }, "Auto Cycle", ids::cycleNames(), 0));
     p.push_back (std::make_unique<AudioParameterBool> (ParameterID { ids::shuffle, 1 }, "Shuffle", false));
 
+    //------------------------------------------------------------------ v1.1: all default to neutral
+    auto centred = [] (float lo, float hi, float centre)
+    {
+        NormalisableRange<float> r (lo, hi);
+        r.setSkewForCentre (centre);
+        return r;
+    };
+    auto times = [] (float v, int) { return String (v, 2) + "x"; };
+    auto signedPct = [] (float v, int) { const int p = juce::roundToInt (v * 100.0f); return (p > 0 ? "+" : "") + String (p) + "%"; };
+    auto addFloat = [&p] (const char* id, const char* name, NormalisableRange<float> range, float def,
+                          std::function<String (float, int)> fmt)
+    {
+        p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { id, 2 }, name, range, def,
+                     AudioParameterFloatAttributes().withStringFromValueFunction (std::move (fmt))));
+    };
+
+    // MOTION
+    addFloat (ids::zoom,      "Zoom",       centred (0.5f, 2.0f, 1.0f), 1.0f, times);
+    addFloat (ids::spin,      "Spin",       NormalisableRange<float> (-1.0f, 1.0f), 0.0f, signedPct);
+    addFloat (ids::shake,     "Shake",      NormalisableRange<float> (0.0f, 1.0f), 0.0f, pct);
+    addFloat (ids::feedback,  "Feedback",   NormalisableRange<float> (0.0f, 1.0f), 0.0f, pct);
+    addFloat (ids::twist,     "Twist",      NormalisableRange<float> (-1.0f, 1.0f), 0.0f, signedPct);
+    addFloat (ids::strobe,    "Strobe",     NormalisableRange<float> (0.0f, 1.0f), 0.0f, pct);
+    addFloat (ids::lineWidth, "Line Width", centred (0.3f, 3.0f, 1.0f), 1.0f, times);
+    addFloat (ids::beatSens,  "Beat Sens",  NormalisableRange<float> (0.0f, 1.0f), 0.65f, pct);
+
+    // COLOR / FX
+    addFloat (ids::saturation, "Saturation",    centred (0.0f, 2.0f, 1.0f), 1.0f, pct);
+    addFloat (ids::brightness, "Brightness",    centred (0.3f, 1.6f, 1.0f), 1.0f, pct);
+    addFloat (ids::palShift,   "Palette Shift", NormalisableRange<float> (0.0f, 1.0f), 0.0f, pct);
+    addFloat (ids::scanlines,  "Scanlines",     NormalisableRange<float> (0.0f, 1.0f), 0.0f, pct);
+    addFloat (ids::vignette,   "Vignette",      NormalisableRange<float> (0.0f, 1.0f), 0.0f, pct);
+    addFloat (ids::pixelate,   "Pixelate",      NormalisableRange<float> (0.0f, 1.0f), 0.0f, pct);
+    addFloat (ids::tilt,       "Tilt",          NormalisableRange<float> (-3.0f, 9.0f, 0.1f), 3.0f,
+              [] (float v, int) { return (v > 0 ? "+" : "") + String (v, 1) + " dB/oct"; });
+    p.push_back (std::make_unique<AudioParameterChoice> (ParameterID { ids::symmetry, 2 }, "Symmetry", ids::symmetryNames(), 0));
+
     return { p.begin(), p.end() };
 }
 

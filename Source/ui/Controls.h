@@ -31,7 +31,7 @@ public:
     juce::Colour panel() const { return theme.bg.withAlpha (0.74f); }
 
     void drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h, float pos,
-                           float a0, float a1, juce::Slider&) override
+                           float a0, float a1, juce::Slider& slider) override
     {
         using namespace juce;
         auto b = Rectangle<float> ((float) x, (float) y, (float) w, (float) h).reduced (4.0f);
@@ -44,9 +44,13 @@ public:
         g.setColour (theme.text.withAlpha (0.12f));
         g.strokePath (track, PathStrokeType (tw, PathStrokeType::curved, PathStrokeType::rounded));
 
-        if (pos > 0.001f)
+        // Centre-zero knobs (Spin, Twist) draw their arc out from the middle.
+        float from = a0;
+        if (slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0)
+            from = a0 + (float) slider.valueToProportionOfLength (0.0) * (a1 - a0);
+        if (std::abs (ang - from) > 0.002f)
         {
-            Path val; val.addCentredArc (c.x, c.y, rad - tw, rad - tw, 0, a0, ang, true);
+            Path val; val.addCentredArc (c.x, c.y, rad - tw, rad - tw, 0, jmin (from, ang), jmax (from, ang), true);
             ColourGradient grad (theme.at (0.1f), c.x - rad, c.y + rad, theme.at (0.9f), c.x + rad, c.y - rad, false);
             g.setColour (theme.at (0.6f).withAlpha (0.25f));
             g.strokePath (val, PathStrokeType (tw * 2.6f, PathStrokeType::curved, PathStrokeType::rounded));
