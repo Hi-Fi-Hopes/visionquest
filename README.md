@@ -2,15 +2,15 @@
 
 An animated audio visualizer VST3 for Ableton Live (JUCE / C++). Audio passes through untouched; the window is the show.
 
-## Modes (28)
+## Modes (29)
 **Classic Meters:** Spectrum Bars · Oscilloscope · Lissajous · Waterfall · VU Meters · LED Matrix · VFD Analyzer
 **Radial & Geometric:** Radial Burst · Kaleidoscope · Pulse Rings · Orbit Scope · Hypno Spiral · Shape Shifter
-**Space & Energy:** Particle Storm · Warp Tunnel · Starfield · Fireworks · Lightning · Galaxy
+**Space & Energy:** Particle Storm · Warp Tunnel · Starfield · Fireworks · Lightning · Galaxy · Starship Console
 **Retro & Psychedelic:** Plasma · Retro Horizon · Ridgelines · Lava Lamp · Digital Rain · Disco Floor
 **Waves & Flow:** Ripple Grid · Flow Field · Ribbons
 
-## Themes (16)
-Synthwave · Marantz Glow · Phosphor · Amber CRT · Psychedelic · Inferno · Glacier · Toxic · Sunset Strip · Vaporwave · Monochrome · Nixie Tube · Bubblegum · Deep Ocean · Gold Record · Blood Moon
+## Themes (17)
+Synthwave · Marantz Glow · Phosphor · Amber CRT · Psychedelic · Inferno · Glacier · Toxic · Sunset Strip · Vaporwave · Monochrome · Nixie Tube · Bubblegum · Deep Ocean · Gold Record · Blood Moon · Starship Ops
 
 ## Controls
 Three knob pages (LOOK / MOTION / COLOR, or keys 1 / 2 / 3). Double-click any knob to reset it.
@@ -68,4 +68,4 @@ Analyzer test (no JUCE needed):
 g++ -O2 -std=c++17 -I Source tests/analyzer_test.cpp -o analyzer_test && ./analyzer_test
 ```
 
-Fonts: Shrikhand, Space Grotesk, JetBrains Mono — SIL Open Font License (see `Resources/OFL-*.txt`).
+Fonts: Shrikhand, Space Grotesk, JetBrains Mono, Antonio — SIL Open Font License (see `Resources/OFL-*.txt`).

@@ -14,6 +14,7 @@ struct Fonts
     juce::Typeface::Ptr medium  = make (BinaryData::SpaceGroteskMedium_ttf,    BinaryData::SpaceGroteskMedium_ttfSize);
     juce::Typeface::Ptr bold    = make (BinaryData::SpaceGroteskBold_ttf,      BinaryData::SpaceGroteskBold_ttfSize);
     juce::Typeface::Ptr mono    = make (BinaryData::JetBrainsMonoSemiBold_ttf, BinaryData::JetBrainsMonoSemiBold_ttfSize);
+    juce::Typeface::Ptr condensed = make (BinaryData::AntonioSemiBold_ttf,    BinaryData::AntonioSemiBold_ttfSize);
 
     static juce::Font font (juce::Typeface::Ptr tf, float height, float kerning = 0.0f)
     {

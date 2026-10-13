@@ -80,6 +80,43 @@ int main (int argc, char** argv)
     };
 
     const auto modes = vq::ids::modeNames();
+
+    // "console": just the Starship Console, at a few sizes and themes
+    if (argc > 2 && String (argv[2]) == "console")
+    {
+        const int consoleMode = modes.indexOf ("Starship Console");
+        const int ops = vq::themeNames().indexOf ("Starship Ops");
+        setParam (proc, vq::ids::mode, (float) consoleMode);
+        struct Shot { const char* name; int w, h; int theme; bool hidden; float detail; bool mirror; };
+        for (auto& sh : std::vector<Shot> { { "console_ops", 960, 600, ops, false, 0.5f, false },
+                                            { "console_ops_full", 1600, 900, ops, true, 0.5f, false },
+                                            { "console_ops_detail_mirror", 960, 600, ops, true, 1.0f, true },
+                                            { "console_marantz", 960, 600, 1, false, 0.5f, false },
+                                            { "console_small", 640, 400, ops, false, 0.5f, false } })
+        {
+            ed->setSize (sh.w, sh.h);
+            setParam (proc, vq::ids::theme, (float) sh.theme);
+            setParam (proc, vq::ids::detail, sh.detail);
+            setParam (proc, vq::ids::mirror, sh.mirror ? 1.0f : 0.0f);
+            ed->getStage().setControlsVisible (! sh.hidden);
+            runFrames (100, true);
+            save (String (sh.name) + ".png", 1.0f);
+        }
+        // the theme on a few other modes and on the knob panel
+        ed->setSize (960, 600);
+        ed->getStage().setControlsVisible (true);
+        setParam (proc, vq::ids::detail, 0.5f);
+        setParam (proc, vq::ids::mirror, 0.0f);
+        setParam (proc, vq::ids::theme, (float) ops);
+        for (int m : { 0, 2, 25 })
+        {
+            setParam (proc, vq::ids::mode, (float) m);
+            runFrames (100, true);
+            save (String::formatted ("ops_mode%02d.png", m), 1.0f);
+        }
+        ed.reset();
+        return 0;
+    }
     const int nThemes = (int) vq::themes().size();
     const bool onlyNew = argc > 2 && String (argv[2]) == "new";
     std::printf ("per-mode average paint (software renderer, 960x600):\n");

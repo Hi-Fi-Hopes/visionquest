@@ -44,6 +44,8 @@ inline const std::vector<Theme>& themes()
         { "Deep Ocean",   C (0xff00060d), C (0xff002233), { C (0xff003b5c), C (0xff00708f), C (0xff00b3b3), C (0xff57e8c9), C (0xffd6fff4) }, C (0xff00d1c1), C (0xffd6fff4) },
         { "Gold Record",  C (0xff0a0804), C (0xff1e170a), { C (0xff4a3a12), C (0xff9c7a24), C (0xffe0b84a), C (0xfffff0b0), C (0xffffffff) }, C (0xffe0b84a), C (0xfffff3d0) },
         { "Blood Moon",   C (0xff070000), C (0xff1c0206), { C (0xff2b0008), C (0xff6e0014), C (0xffc4102a), C (0xffff4d4d), C (0xffffd0c8) }, C (0xffff2d3d), C (0xffffd6d0) },
+        // added in v1.2: 24th-century starship console colours
+        { "Starship Ops", C (0xff000000), C (0xff07060c), { C (0xff9999ff), C (0xffcc99cc), C (0xffcc6666), C (0xffff9900), C (0xffffcc99), C (0xffffcc66) }, C (0xffff9900), C (0xffffcc99) },
     };
     return list;
 }

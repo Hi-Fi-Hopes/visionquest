@@ -1190,8 +1190,11 @@ private:
 };
 
 //==============================================================================
+std::unique_ptr<Visual> createVisual3 (int index);   // v1.2 modes, in Visuals3.cpp
+
 std::unique_ptr<Visual> createVisual2 (int index)
 {
+    if (index >= 28) return createVisual3 (index);
     switch (index)
     {
         case 12: return std::make_unique<PulseRings>();
